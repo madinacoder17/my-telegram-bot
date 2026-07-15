@@ -608,7 +608,7 @@ def game_clock():
                         try:
                             bot.send_message(cid, "🎁 Прошло 3 дня! Тебе начислена 1 жизнь для зайчика!")
                         except Exception:
-                    �        pass
+                             pass
                 except Exception:
                     pass
 

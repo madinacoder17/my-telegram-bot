@@ -6,6 +6,23 @@ import random
 import threading
 import time
 import datetime
+from flask import Flask  # Добавили Flask для обхода портов Render
+
+# --- НАСТРОЙКА ВЕБ-СЕРВЕРА ДЛЯ RENDER ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Бот работает!"
+
+def run_web_server():
+    # Render передает порт в переменных окружения PORT. По умолчанию ставим 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# Запускаем веб-сервер в отдельном потоке, чтобы он не мешал боту
+threading.Thread(target=run_web_server, daemon=True).start()
+# ----------------------------------------
 
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 if not TOKEN:
@@ -59,7 +76,6 @@ def init_db():
             conn.commit()
 
         if 'utc_offset' not in columns:
-            # По умолчанию None — ночной режим не активен
             cursor.execute("ALTER TABLE rabbits ADD COLUMN utc_offset INTEGER")
             conn.commit()
     else:
@@ -85,7 +101,6 @@ init_db()
 
 # --- НОЧНОЕ ВРЕМЯ ---
 def is_night_for_user(utc_offset):
-    """Возвращает True, если сейчас ночь (23:00–7:00) по времени пользователя."""
     if utc_offset is None:
         return False
     utc_now = datetime.datetime.utcnow()
@@ -93,13 +108,8 @@ def is_night_for_user(utc_offset):
     return user_hour >= 23 or user_hour < 7
 
 def parse_time_input(text):
-    """
-    Разбирает строку типа '22:30', '22', '10 вечера', '10pm'.
-    Возвращает час (0–23) или None если не распознано.
-    """
     text = text.strip().lower()
 
-    # Формат "HH:MM"
     if ':' in text:
         parts = text.split(':')
         try:
@@ -109,7 +119,6 @@ def parse_time_input(text):
         except ValueError:
             pass
 
-    # Попытка разобрать "10 вечера" / "10 утра" / "10pm" / "10am"
     is_pm = any(w in text for w in ['вечера', 'ночи', 'pm', 'вечер'])
     is_am = any(w in text for w in ['утра', 'утром', 'am', 'дня'])
 
@@ -129,10 +138,8 @@ def parse_time_input(text):
     return None
 
 def calc_utc_offset(user_hour):
-    """Вычисляет UTC-смещение по часу пользователя."""
     utc_hour = datetime.datetime.utcnow().hour
     offset = user_hour - utc_hour
-    # Нормализуем в диапазон [-12, +14]
     if offset > 14:
         offset -= 24
     elif offset < -12:
@@ -197,9 +204,6 @@ def remove_keyboard():
 
 # --- ХАРАКТЕР ЗАЙЧИКА ---
 def rabbit_speak(name, mood, satiety):
-    """Зайчик отвечает от себя в зависимости от настроения и сытости."""
-
-    # Фразы про голод — приоритет если очень голоден
     if satiety <= 2:
         return random.choice([
             f"у меня живот урчит... покорми меня пожалуйста 🥺🥕",
@@ -209,7 +213,6 @@ def rabbit_speak(name, mood, satiety):
             f"покорми сначала, потом разговоры! 🥕🥕🥕",
         ])
 
-    # Фразы по настроению
     if mood == "😍":
         phrases = [
             f"я тебя люблю! ты лучший хозяин на свете 🥰",
@@ -283,11 +286,10 @@ def format_satiety(satiety):
 # --- ОБРАБОТЧИКИ ---
 @bot.message_handler(content_types=['new_chat_members'])
 def on_added_to_group(message):
-    """Срабатывает когда бота добавляют в группу — сразу начинает создание зайчика."""
     bot_id = bot.get_me().id
     new_members = message.new_chat_members
     if not any(m.id == bot_id for m in new_members):
-        return  # Добавили не бота, а другого пользователя
+        return
 
     chat_id = message.chat.id
     conn = sqlite3.connect(DB_PATH)
@@ -384,21 +386,18 @@ def handle_messages(message):
     elif status == 'creating_time':
         utc_offset = None
 
-        # Кнопка «Пропустить»
         if text == "⏩ Пропустить":
             utc_offset = None
             skip = True
         else:
             skip = False
-            # Кнопки часовых поясов вида "🕐 UTC+3 (Москва)"
             if text.startswith("🕐 UTC"):
                 try:
-                    sign_part = text.split("UTC")[1].split(" ")[0]  # e.g. "+3" или "-5"
+                    sign_part = text.split("UTC")[1].split(" ")[0]
                     utc_offset = int(sign_part)
                 except Exception:
                     utc_offset = None
             else:
-                # Свободный ввод времени
                 hour = parse_time_input(text)
                 if hour is not None:
                     utc_offset = calc_utc_offset(hour)
@@ -448,7 +447,7 @@ def handle_messages(message):
             conn.commit()
             bot.send_message(chat_id, "Зайчик сброшен... Давай создадим нового 🥺", reply_markup=get_color_keyboard())
         elif text == "Нет😊":
-            cursor.execute("UPDATE rabbits SET status = 'alive' WHERE chat�_id = ?", (chat_id,))
+            cursor.execute("UPDATE rabbits SET status = 'alive' WHERE chat_id = ?", (chat_id,))
             conn.commit()
             bot.send_message(chat_id, "Ура! Зайчик остается с тобой!", reply_markup=get_settings_keyboard())
         else:
@@ -544,7 +543,6 @@ def handle_messages(message):
             bot.send_message(chat_id, "Возвращаемся в главное меню", reply_markup=get_main_keyboard())
 
         else:
-            # Неизвестное сообщение — зайчик отвечает от себя по настроению и сытости
             reply = rabbit_speak(name, mood, satiety)
             bot.send_message(chat_id, reply, reply_markup=get_main_keyboard())
 
@@ -564,12 +562,10 @@ def game_clock():
             cid, r_status, r_satiety, r_lives, r_last_gift, r_last_fed, r_name, r_utc_offset = rabbit
 
             if r_status == 'alive':
-                # --- ГОЛОД: каждые 2 часа -2 морковки (пропускаем ночью) ---
+                # --- ГОЛОД ---
                 try:
                     if r_last_fed and current_time - float(r_last_fed) >= 7200:
-                        # Ночной режим: не голодаем с 23:00 до 7:00
                         if is_night_for_user(r_utc_offset):
-                            # Сдвигаем таймер, чтобы не накопился голод за ночь
                             cursor.execute(
                                 "UPDATE rabbits SET last_fed = ? WHERE chat_id = ?",
                                 (str(current_time), cid)
@@ -597,7 +593,7 @@ def game_clock():
                 except Exception:
                     pass
 
-                # --- ЖИЗНИ: раз в 3 дня ---
+                # --- ЖИЗНИ ---
                 try:
                     if r_last_gift and current_time - float(r_last_gift) >= 259200:
                         cursor.execute(
@@ -608,7 +604,7 @@ def game_clock():
                         try:
                             bot.send_message(cid, "🎁 Прошло 3 дня! Тебе начислена 1 жизнь для зайчика!")
                         except Exception:
-                             pass
+                            pass
                 except Exception:
                     pass
 

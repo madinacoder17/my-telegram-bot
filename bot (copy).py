@@ -261,7 +261,7 @@ def rabbit_speak(name, mood, satiety):
             f"я тебя люблю! ты лучший хозяин на свете 🥰",
             f"сегодня такой хороший день... я счастлив 😍",
             f"мне так хорошо рядом с тобой ❤️",
-            f"жизнь прекрасна! особенно когда есть морковка 🥕✨",
+            f"жизнь прекрасна! especially когда есть морковка 🥕✨",
             f"ты написал мне! я так рад!! 🥰🐰",
             f"обними меня пожалуйста... мысленно 🤗",
         ]
@@ -388,24 +388,23 @@ def handle_messages(message):
     cursor = conn.cursor()
     cursor.execute("SELECT status, name, color, satiety, lives, mood, utc_offset FROM rabbits WHERE chat_id = ?", (chat_id,))
     user_data = cursor.fetchone()
-    	if not user_data:
-		if text == '/start':
-			cursor.execute("INSERT INTO rabbits (chat_id, status) VALUES (?, 'creating_color')", (chat_id,))
-			conn.commit()
-			conn.close()
-			bot.send_message(chat_id, "Привет! Давай создадим твоего зайчика. Выбери цвет: белый, черный или розовый?")
-			return
-		else:
-			conn.close()
-			return
 
+    if not user_data:
+        if text == '/start':
+            cursor.execute("INSERT INTO rabbits (chat_id, status) VALUES (?, 'creating_color')", (chat_id,))
+            conn.commit()
+            conn.close()
+            bot.send_message(chat_id, "Привет! Давай создадим твоего зайчика. Выбери цвет: белый, черный или розовый?")
+            return
+        else:
+            conn.close()
+            return
 
     # Если user_data НАЙДЕН (зайчик уже есть) и пользователь пишет /start
     if text == '/start':
         conn.close()
         bot.send_message(chat_id, "🐰 Зайчик уже ждёт тебя!")
         return
-
 
     status, name, color, satiety, lives, mood, utc_offset = user_data
 

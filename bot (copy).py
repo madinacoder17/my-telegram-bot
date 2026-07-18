@@ -388,9 +388,8 @@ def handle_messages(message):
     cursor = conn.cursor()
     cursor.execute("SELECT status, name, color, satiety, lives, mood, utc_offset FROM rabbits WHERE chat_id = ?", (chat_id,))
     user_data = cursor.fetchone()
-
-        if not user_data:
-        if text == '/start':
+   if not user_data:
+            if text == '/start':
             # Здесь логика создания нового зайчика (первый запуск)
             cursor.execute("INSERT INTO rabbits (chat_id, status) VALUES (?, 'creating_color')", (chat_id,))
             conn.commit()

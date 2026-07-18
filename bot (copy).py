@@ -30,6 +30,48 @@ if not TOKEN:
 
 bot = telebot.TeleBot(TOKEN)
 
+ADMIN_ID = 8235717528  
+
+@bot.message_handler(commands=['broadcast'])
+def start_broadcast(message):
+    if message.chat.id != ADMIN_ID:
+        return
+    msg = bot.send_message(message.chat.id, "Напишите text сообщения для рассылки всем пользователям:")
+    bot.register_next_step_handler(msg, send_broadcast_message)
+
+def send_broadcast_message(message):
+    text_to_send = message.text
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id FROM rabbits")
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        bot.send_message(message.chat.id, "В базе данных пока нет пользователей.")
+        return
+
+    success_count = 0
+    fail_count = 0
+    bot.send_message(message.chat.id, f"Начинаю рассылку для {len(rows)} чатов...")
+
+    for row in rows:
+        user_chat_id = row[0]
+        try:
+            bot.send_message(user_chat_id, text_to_send)
+            success_count += 1
+            time.sleep(0.1)
+        except Exception as e:
+            fail_count += 1
+
+    bot.send_message(
+        message.chat.id, 
+        f"Рассылка завершена! 🎉\n"
+        f"Успешно доставлено: {success_count}\n"
+        f"Не удалось отправить: {fail_count}"
+    )
+
+
 PHOTOS_DIR = os.path.join(os.path.dirname(__file__), 'photos')
 
 PHOTOS = {
@@ -547,53 +589,7 @@ def handle_messages(message):
             bot.send_message(chat_id, reply, reply_markup=get_main_keyboard())
 
     conn.close()
-    ADMIN_ID = 8235717528  
 
-@bot.message_handler(commands=['broadcast'])
-def start_broadcast(message):
-    # Проверяем, что команду пишет именно администратор (ты)
-    if message.chat.id != ADMIN_ID:
-        return
-
-    # Запрашиваем текст для рассылки
-    msg = bot.send_message(message.chat.id, "Напишите текст сообщения для рассылки всем пользователям:")
-    bot.register_next_step_handler(msg, send_broadcast_message)
-
-def send_broadcast_message(message):
-    text_to_send = message.text
-    
-    # Подключаемся к базе данных, чтобы достать всех пользователей
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT chat_id FROM rabbits")
-    rows = cursor.fetchall()
-    conn.close()
-
-    if not rows:
-        bot.send_message(message.chat.id, "В базе данных пока нет пользователей.")
-        return
-
-    success_count = 0
-    fail_count = 0
-
-    bot.send_message(message.chat.id, f"Начинаю рассылку для {len(rows)} чатов...")
-
-    for row in rows:
-        user_chat_id = row[0]
-        try:
-            bot.send_message(user_chat_id, text_to_send)
-            success_count += 1
-            time.sleep(0.1)  # Пауза, чтобы Telegram не заблокировал за спам
-        except Exception as e:
-            print(f"Не удалось отправить сообщение в чат {user_chat_id}: {e}")
-            fail_count += 1
-
-    bot.send_message(
-        message.chat.id, 
-        f"Рассылка завершена! 🎉\n"
-        f"Успешно доставлено: {success_count}\n"
-        f"Не удалось отправить: {fail_count}"
-    )
 
 
 # --- ТАЙМЕРЫ: голод и жизни ---

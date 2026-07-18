@@ -388,17 +388,17 @@ def handle_messages(message):
     cursor = conn.cursor()
     cursor.execute("SELECT status, name, color, satiety, lives, mood, utc_offset FROM rabbits WHERE chat_id = ?", (chat_id,))
     user_data = cursor.fetchone()
-        if not user_data:
-            if text == '/start':
-            # Здесь логика создания нового зайчика (первый запуск)
-            cursor.execute("INSERT INTO rabbits (chat_id, status) VALUES (?, 'creating_color')", (chat_id,))
-            conn.commit()
-            conn.close()
-            bot.send_message(chat_id, "Привет! Давай создадим твоего зайчика. Выбери цвет: белый, черный или розовый?")
-            return
-        else:
-            conn.close()
-            return
+    	if not user_data:
+		if text == '/start':
+			cursor.execute("INSERT INTO rabbits (chat_id, status) VALUES (?, 'creating_color')", (chat_id,))
+			conn.commit()
+			conn.close()
+			bot.send_message(chat_id, "Привет! Давай создадим твоего зайчика. Выбери цвет: белый, черный или розовый?")
+			return
+		else:
+			conn.close()
+			return
+
 
     # Если user_data НАЙДЕН (зайчик уже есть) и пользователь пишет /start
     if text == '/start':
